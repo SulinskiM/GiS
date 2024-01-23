@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://cdn.rawgit.com/openlayers/openlayers.github.io/master/en/v5.3.0/css/ol.css"
+        type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+
+    <title>OpenLayers example</title>
+    <style>
+        .ol-attribution.ol-logo-only,
+        .ol-attribution.ol-uncollapsible {
+            max-width: calc(100% - 3em) !important;
+            height: 1.5em !important;
+        }
+
+        .ol-control button,
+        .ol-attribution,
+        .ol-scale-line-inner {
+            font-family: 'Lucida Grande', Verdana, Geneva, Lucida, Arial, Helvetica, sans-serif !important;
+        }
+
+        .ol-popup {
+            font-family: 'Lucida Grande', Verdana, Geneva, Lucida, Arial, Helvetica, sans-serif !important;
+            font-size: 12px;
+            position: absolute;
+            background-color: white;
+            -webkit-filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
+            filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 300px;
+        }
+
+        .ol-popup:after,
+        .ol-popup:before {
+            top: 100%;
+            border: solid transparent;
+            content: " ";
+            height: 0;
+            width: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .ol-popup:after {
+            border-top-color: white;
+            border-width: 10px;
+            left: 48px;
+            margin-left: -10px;
+        }
+
+        .ol-popup:before {
+            border-top-color: #cccccc;
+            border-width: 11px;
+            left: 48px;
+            margin-left: -11px;
+        }
+
+        .ol-popup-closer {
+            text-decoration: none;
+            position: absolute;
+            top: 2px;
+            right: 8px;
+        }
+
+        .ol-popup-closer:after {
+            content: "✖";
+            color: #c3c3c3;
+        }
+
+    </style>
+</head>
+
+<body>
+<div id="menu" style="position: absolute; z-index: 100; width: 20%; height: 300px; background-color: rgba(255,255,255,0.5); margin-left: 80%;">
+<form method="post">
+    {% csrf_token %}
+    <select class="form-select" id="kategoria" name="kategoria" aria-label="Default select example">
+  <option selected>Kategoria obiektu</option>
+    {% for kategoria in kategorie %}
+        <option value="{{ kategoria.title }}">{{ kategoria.title }}</option>
+    {% endfor %}
+</select>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary mb-3" action="http://127.0.0.1:8000/mapa">Filtruj</button>
+        <button class="btn btn-primary mb-3" action="http://127.0.0.1:8000/mapa">Wyczyść</button>
+    </div>
+    </form>
+    </div>
+    <div id="map"></div>
+    <div id="popup" class="ol-popup">
+        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+        <div id="popup-content"></div>
+    </div>
+
+    <div id="obiekty" style="display: none;">
+        {% for obiekt in obiekty %}
+            <div id="{{ obiekt.id }}"><div class="title">{{ obiekt.title }}</div><div class="opis">{{ obiekt.opis }}</div><div class="latitude">{{ obiekt.latitude }}</div><div class="longitude">{{ obiekt.longitude }}</div><div class="kategoria">{{ obiekt.kategoria }}</div></div>
+        {% endfor %}
+    </div>
+
+    <script src="https://cdn.rawgit.com/openlayers/openlayers.github.io/master/en/v5.3.0/build/ol.js"></script>
+
+    <script>
+
+        var attribution = new ol.control.Attribution({
+            collapsible: false
+        });
+
+        var map = new ol.Map({
+            controls: ol.control.defaults({ attribution: false }).extend([attribution]),
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM({
+                        url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    })
+                })
+            ],
+            target: 'map',
+            view: new ol.View({
+                center: ol.proj.fromLonLat([18.5305409, 54.5188898]),
+                maxZoom: 18,
+                zoom: 12
+            })
+        });
+
+
+        var obiekty = document.getElementById('obiekty');
+        var elementy = [];
+        console.log(obiekty.children.length);
+
+        const obiektys = obiekty.children[0];
+        console.log(obiektys.querySelector(".title").innerText);
+        console.log(obiektys.querySelector(".latitude").innerText);
+        console.log(obiektys.querySelector(".longitude").innerText);
+
+        for (let i = 0; i < obiekty.children.length; i++) {
+            latitude = parseFloat(obiekty.children[i].querySelector(".latitude").innerText);
+            longitude = parseFloat(obiekty.children[i].querySelector(".longitude").innerText);
+            name = obiekty.children[i].querySelector(".title").innerText;
+            opis = obiekty.children[i].querySelector(".opis").innerText;
+            kategoria = obiekty.children[i].querySelector(".kategoria").innerText;
+            console.log(latitude);
+            console.log(longitude);
+            elementy.push(new ol.Feature({
+                        geometry: new ol.geom.Point(ol.proj.fromLonLat([longitude, latitude])),
+                        name: name,
+                        opis: opis,
+                        kategoria: kategoria
+                    }));
+        }
+
+        var layer = new ol.layer.Vector({
+            source: new ol.source.Vector({
+                features: elementy
+            }),
+			style: new ol.style.Style({
+				image: new ol.style.Icon({
+				  scale: 0.5,
+				  src: 'https://vitarsi.com/wp-content/uploads/2022/02/marker.png',
+				})
+			  })
+        });
+        map.addLayer(layer);
+
+        var container = document.getElementById('popup');
+        var content = document.getElementById('popup-content');
+        var closer = document.getElementById('popup-closer');
+
+        var overlay = new ol.Overlay({
+            element: container,
+            autoPan: true,
+            autoPanAnimation: {
+                duration: 250
+            }
+        });
+        map.addOverlay(overlay);
+
+        closer.onclick = function () {
+            overlay.setPosition(undefined);
+            closer.blur();
+            return false;
+        };
+
+        map.on('singleclick', function (event) {
+            if (map.hasFeatureAtPixel(event.pixel) === true) {
+                var name = map.forEachFeatureAtPixel(event.pixel,
+                function(feature, layer) {
+                    return feature.get('name');
+                });
+                var opis = map.forEachFeatureAtPixel(event.pixel,
+                function(feature, layer) {
+                    return feature.get('opis');
+                });
+                var kategoria = map.forEachFeatureAtPixel(event.pixel,
+                function(feature, layer) {
+                    return feature.get('kategoria');
+                });
+
+                var coordinate = event.coordinate;
+                content.innerHTML = '<b>' + name + '</b><br />' + opis + '</br><b>' + kategoria + '</b>';
+                overlay.setPosition(coordinate);
+            } else {
+                var coordinate = event.coordinate;
+                var polozenie = ol.proj.transform(coordinate, 'EPSG:3857', 'EPSG:4326');
+                content.innerHTML =
+                    `<form action="http://127.0.0.1:8000/mapa/add" class="row g-3" method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                          <label for="nazwa" class="form-label">Nazwa obiektu:</label>
+                          <input type="text" class="form-control" id="nazwa" name="nazwa" placeholder="...">
+                        </div>
+                        <div class="mb-3">
+                          <label for="opis" class="form-label">Opis obiektu:</label>
+                          <textarea class="form-control" type="text" id="opis" name="opis"></textarea>
+                        </div>
+                        <div class="mb-3">
+                          <label for="lon" class="form-label">Lon</label>
+                          <textarea class="form-control" type="text" id="lon" name="lon">` + polozenie[0] + `</textarea>
+                        </div>
+                        <div class="mb-3">
+                          <label for="lan" class="form-label">Lan</label>
+                          <textarea class="form-control" id="lan" name="lan">` + polozenie[1] + `</textarea>
+                        </div>
+                        <select class="form-select" id="kategoria" name="kategoria" aria-label="Default select example">
+                          <option selected>Kategoria obiektu</option>
+                          {% for kategoria in kategorie %}
+                            <option value="{{ kategoria.title }}">{{ kategoria.title }}</option>
+                          {% endfor %}
+                        </select>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary mb-3">Dodaj obiekt</button>
+                        </div>
+                    </form>`;
+
+                overlay.setPosition(coordinate);
+            }
+        });
+
+        content.innerHTML = '<b>Hello world!</b><br />I am a popup.';
+        //overlay.setPosition(ol.proj.fromLonLat([18.5305409, 54.5188898]));
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+</body>
+
+</html>
